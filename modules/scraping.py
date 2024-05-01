@@ -34,9 +34,17 @@ distrowatch_scrape_patterns = [
     "Average visitor rating: "
 ]
 
+def distrowatch_getrealname(distro):
+    req = requests.get("https://distrowatch.com/table.php?distribution="+distro)
+    try:
+        urlname = req.url.split("https://distrowatch.com/table.php?distribution=")[1]
+    except IndexError: #Si pasa esto es porque lo mando a una pagina invalida. debe retornar lo mismo que dio el usuario
+        return distro
+    return urlname
+
 # Scrapea una pagina de distrowatch y devuelve un LinuxDistro con informacion
-def distrowatch_linuxdistro(url):
-    req = requests.get(url)
+def distrowatch_linuxdistro(distro):
+    req = requests.get("https://distrowatch.com/table.php?distribution="+distro)
     soup = BeautifulSoup(req.text, features="html.parser")
 
     if soup is None:
@@ -46,6 +54,9 @@ def distrowatch_linuxdistro(url):
         datos = soup.find("td", {"class": "TablesTitle"}).text
     except AttributeError:
         return None
+
+    urlname = req.url.split("https://distrowatch.com/table.php?distribution=")[1]
+    print("URL Name:",urlname)
 
     for i in distrowatch_scrape_patterns:
         datos = datos.replace(i, "$$$")
@@ -60,7 +71,7 @@ def distrowatch_linuxdistro(url):
     while datos.count("") != 0:
         datos.remove("") 
     
-    ld = LinuxDistro(datos)
+    ld = LinuxDistro(urlname, datos)
     return ld
 
 def distrowatch_numberdistros():
@@ -100,7 +111,7 @@ def distrowatch_alltocsv():
     if os.path.exists("distros.csv"):
         table = pd.read_csv("distros.csv", sep="\t") #Elegi el tabulador porque es el menos probable que se use
     else:
-        table = pd.DataFrame(columns=["Name", "LastUpdated", "OSType", "BasedOn", "Origin", "Architecture", "Desktop", "Category", "Status", "Popularity", "Description"])
+        table = pd.DataFrame(columns=["UrlName","Name", "LastUpdated", "OSType", "BasedOn", "Origin", "Architecture", "Desktop", "Category", "Status", "Popularity", "Description"])
 
     print("Getting list of linux distributions")
     available_distros = distrowatch_list()
@@ -112,14 +123,14 @@ def distrowatch_alltocsv():
             continue
 
         print(f"Scraping: {distro}... ({num+1}/{len(available_distros)})")
-        ld = distrowatch_linuxdistro("https://distrowatch.com/table.php?distribution="+distro)
+        ld = distrowatch_linuxdistro(distro)
 
         if ld == None:
             print(f"No se encontro: {distro}.")
             alt_name = distro.split(" ")[0]
             print(f"Trying with: {alt_name}")
 
-            ld = distrowatch_linuxdistro("https://distrowatch.com/table.php?distribution="+alt_name)
+            ld = distrowatch_linuxdistro(alt_name)
 
             if ld == None:
                 print(f"Failed to scrape: {distro} or {alt_name}. Skipping...")
@@ -128,6 +139,7 @@ def distrowatch_alltocsv():
                 print(f"Found {alt_name}! Scrapping...")
 
         new_row = {
+            "UrlName": ld.urlname,
             "Name": ld.name,
             "LastUpdated": ld.last_updated,
             "OSType": ld.os_type,

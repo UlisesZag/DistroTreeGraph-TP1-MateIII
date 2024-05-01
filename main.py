@@ -14,17 +14,19 @@ import modules.data as data
 import modules.ui as ui
 
 print("DistroTree Graph v0.1dev")
-print("1: Parsear distros. 2: 0: Mostrar grafo")
+print("1: Parsear distros. 2: Buscar y guardar distros individuales. 0: Mostrar grafo")
 opcion = input(":")
 
 if opcion == "1":
     scraping.distrowatch_alltocsv()
-if opcion == "0":
-    ui.graph()
+if opcion == "0": 
+    b = input("Basados en: ").lower()
+    #data.fix_table()
+    ui.graph(b)
 if opcion == "2":
     while True: 
         distro = input("Ingrese una distro linux: ")
-        ld = scraping.distrowatch_linuxdistro("https://distrowatch.com/table.php?language=EN&distribution="+distro)
+        ld = scraping.distrowatch_linuxdistro(distro)
 
         if ld == None:
             print("No se encontro su distro linux buscada.")
