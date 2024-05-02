@@ -2,6 +2,7 @@ import requests
 import re
 import json
 import os
+import threading
 
 from bs4 import BeautifulSoup
 import pandas as pd
@@ -138,6 +139,9 @@ def distrowatch_alltocsv():
             else:
                 print(f"Found {alt_name}! Scrapping...")
 
+        if ld.urlname in table["UrlName"].values:
+            print(f"Skipping {distro} as it is already in the database.")
+
         new_row = {
             "UrlName": ld.urlname,
             "Name": ld.name,
@@ -156,3 +160,69 @@ def distrowatch_alltocsv():
         table = pd.concat([table, pd.DataFrame([new_row])], ignore_index=True)
 
         table.to_csv("distros.csv", sep="\t", index=False)
+
+
+class ScrapeAllThread(threading.Thread):
+    def __init__(self, stop_flag, enable_scrape_button):
+        super().__init__()
+        self.stop_flag = stop_flag
+        self.enable_scrape_button = enable_scrape_button
+
+    def run(self):
+        if os.path.exists("distros.csv"):
+            table = pd.read_csv("distros.csv", sep="\t") #Elegi el tabulador porque es el menos probable que se use
+        else:
+            table = pd.DataFrame(columns=["UrlName","Name", "LastUpdated", "OSType", "BasedOn", "Origin", "Architecture", "Desktop", "Category", "Status", "Popularity", "Description"])
+
+        print("Getting list of linux distributions")
+        available_distros = distrowatch_list()
+        print("Number of linux distros available:", len(available_distros))
+
+        for num, distro in enumerate(available_distros):
+            if self.stop_flag.is_set():
+                break
+
+            if distro in table["Name"].values:
+                print(f"Skipping {distro} as it is already in the database.")
+                continue
+
+            print(f"Scraping: {distro}... ({num+1}/{len(available_distros)})")
+            ld = distrowatch_linuxdistro(distro)
+
+            if ld == None:
+                print(f"No se encontro: {distro}.")
+                alt_name = distro.split(" ")[0]
+                print(f"Trying with: {alt_name}")
+
+                ld = distrowatch_linuxdistro(alt_name)
+
+                if ld == None:
+                    print(f"Failed to scrape: {distro} or {alt_name}. Skipping...")
+                    continue
+                else:
+                    print(f"Found {alt_name}! Scrapping...")
+
+            if ld.urlname in table["UrlName"].values:
+                print(f"Skipping {distro} as it is already in the database.")
+
+            new_row = {
+                "UrlName": ld.urlname,
+                "Name": ld.name,
+                "LastUpdated": ld.last_updated,
+                "OSType": ld.os_type,
+                "BasedOn": ";".join(ld.based_on),
+                "Origin": ";".join(ld.origin),
+                "Architecture": ";".join(ld.architecture),
+                "Desktop": ";".join(ld.desktop),
+                "Category": ";".join(ld.category),
+                "Status": ld.status,
+                "Popularity": ld.popularity,
+                "Description": ld.description
+            }
+            
+            table = pd.concat([table, pd.DataFrame([new_row])], ignore_index=True)
+
+            table.to_csv("distros.csv", sep="\t", index=False)
+        
+        print("Stopped scrapping.")
+        self.enable_scrape_button()
