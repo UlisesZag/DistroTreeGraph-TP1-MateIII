@@ -1,60 +1,14 @@
-import matplotlib.pyplot as plt
-import networkx as nx
-from networkx.drawing.nx_pydot import graphviz_layout
-import re
-import pandas as pd
 import tkinter as tk
 from tkinter import ttk
 from tkinter.scrolledtext import ScrolledText
+from tkinter.messagebox import showerror as tk_showerror
 import sys
 import threading
+import os
 
 import modules.scraping as scraping
 import modules.data as data
-
-def graph(basedon = ""):
-    table = data.load_distros_table() #Carga la tabla con todos los datos
-
-    #Configura el matplotlib
-    fig, ax = plt.subplots(figsize=(15,20))
-
-
-    #Itera por toda la tabla y hace relaciones para el grafo
-    print("Building graph...")
-    relaciones = [] #Cual esta conectado a cual???
-
-    names_map = {} #Diccionario para cambiar los nombres de los nodos
-    sizes_map = {}
-    sizes_array = []
-
-    for index, row in table.iterrows():
-        name = row["UrlName"]
-        complete_name = row["Name"]
-        based_on = row["BasedOn"].split(";")
-        # for b in based_on:
-        #     relaciones.append((name, b))
-
-        if basedon != "":
-            if basedon.lower() != based_on[len(based_on)-1].lower():
-                continue
-        relaciones.append((based_on[len(based_on)-1].lower(), name.lower()))
-        print(f"Appended '{name}' to '{based_on[len(based_on)-1]}'")
-
-        #Añade el nombre a la lista
-        names_map[name] = complete_name
-
-    #Crea el grafo
-    grafo = nx.MultiDiGraph(relaciones)
-    grafo = nx.relabel_nodes(grafo, names_map)
-
-    if basedon == "":
-        pos = nx.planar_layout(grafo)
-    else:
-        pos = nx.kamada_kawai_layout(grafo)
-
-    nx.draw_networkx(grafo, pos, with_labels=True, font_size=10)
-    #Muestra el grafo
-    plt.show()
+import modules.plots as plots
 
 class MainFrame(ttk.Frame):
     def __init__(self, container, root_scrape_distros, root_fix_database, root_draw_graph):
@@ -67,7 +21,7 @@ class MainFrame(ttk.Frame):
         self.options = {'padx': 5, 'pady': 5}
 
         #################### OPCIONES DE SCRAPING ##################################
-        self.scrape_labelframe = tk.LabelFrame(self, text="Opciones de scraping: ")
+        self.scrape_labelframe = ttk.Labelframe(self, text="Opciones de scraping: ")
         self.scrape_labelframe.grid(row = 1, column = 0, padx=10, pady=10, ipadx=5, ipady=5, sticky=tk.NSEW)
 
         self.scrape_button = ttk.Button(self.scrape_labelframe, text="Scrapear Distros", command = self.scrape_distros)
@@ -83,7 +37,7 @@ class MainFrame(ttk.Frame):
         self.fix_label.grid(row = 1, column = 1, sticky=tk.W, padx=10)
 
         #################### OPCIONES DE GRAFICADO ##################################
-        self.graph_labelframe = tk.LabelFrame(self, text = "Opciones de graficado: ")
+        self.graph_labelframe = ttk.Labelframe(self, text = "Opciones de graficado: ")
         self.graph_labelframe.grid(row = 2, column = 0, padx=10, pady=10, ipadx=5, ipady=5, sticky=tk.NSEW)
 
         self.graph_button = ttk.Button(self.graph_labelframe, text = "Mostrar Grafico", command = self.draw_graph)
@@ -118,19 +72,34 @@ class PrintLogger(object):  # create file like object
     def flush(self):  # needed for file like object
         pass
 
-
-
-class ScrapeFrame(ttk.Frame):
+class ConsoleLogger(ScrolledText):
     def __init__(self, container):
+        super().__init__(container)
+    
+    def reset_logging(self):
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__
+
+    def redirect_logging(self):
+        self.logger = PrintLogger(self)
+
+        sys.stdout = self.logger
+        sys.stderr = self.logger
+
+# Ventana de Scrapear las Distribuciones
+class ScrapeFrame(ttk.Frame):
+    def __init__(self, container, root_main_menu):
         super().__init__(container)
 
         self.scrape_thread = None
         self.scrape_thread_kill_event = threading.Event()
 
+        self.root_main_menu = root_main_menu
+
         self.allagain = tk.BooleanVar(self, False)
 
         self.scrape_labelframe = ttk.Labelframe(self, text = "Scrapear distros")
-        self.scrape_labelframe.grid(row = 0, column = 0, padx=10, pady=10, ipadx=5, ipady=5, sticky=tk.NSEW)
+        self.scrape_labelframe.grid(row = 0, column = 0, columnspan = 3, padx=10, pady=10, ipadx=5, ipady=5, sticky=tk.NSEW)
 
         self.scrape_allagain_checkbutton = ttk.Checkbutton(self.scrape_labelframe, text="Descargar todo de nuevo?", variable = self.allagain)
         self.scrape_allagain_checkbutton.grid(row = 0, column = 0)
@@ -141,41 +110,176 @@ class ScrapeFrame(ttk.Frame):
         self.cancel_button = ttk.Button(self.scrape_labelframe, text="Cancelar", command = lambda: self.cancel_scrape_distros(),state=tk.DISABLED)
         self.cancel_button.grid(row = 1, column = 1, padx=5)
 
-        self.back_button = ttk.Button(self.scrape_labelframe, text="Volver")
+        self.back_button = ttk.Button(self.scrape_labelframe, text="Volver", command=lambda: self.main_menu())
         self.back_button.grid(row = 1, column = 2, padx=5)
 
-        self.log_widget = ScrolledText(self)
+        self.log_widget = ConsoleLogger(self)
         self.log_widget.grid(row = 2, column = 0, rowspan=5, columnspan = 3)
 
-        self.redirect_logging()
+    def activate_frame(self):
+        self.log_widget.redirect_logging()
 
     def scrape_distros(self):
-        #self.root_scrape_distros()
         self.scrape_thread_kill_event.clear()
         self.scrape_button["state"] = tk.DISABLED
+        self.back_button["state"] = tk.DISABLED
         self.cancel_button["state"] = tk.NORMAL
         
         self.scrape_thread = scraping.ScrapeAllThread(
             self.scrape_thread_kill_event, 
-            self.enable_scrape_button)
+            self.enable_controls,
+            self.allagain.get()
+            )
         self.scrape_thread.start()
     
     def cancel_scrape_distros(self):
         self.cancel_button["state"] = tk.DISABLED
         self.scrape_thread_kill_event.set()
         
-    def enable_scrape_button(self):
+    def enable_controls(self):
         self.scrape_button["state"] = tk.NORMAL
+        self.back_button["state"] = tk.NORMAL
+        self.cancel_button["state"] = tk.DISABLED
+    
+    def main_menu(self):
+        self.log_widget.reset_logging()
+        self.root_main_menu()
 
-    def reset_logging(self):
-        sys.stdout = sys.__stdout__
-        sys.stderr = sys.__stderr__
+# Ventana de Scrapear las Distribuciones
+class FixFrame(ttk.Frame):
+    def __init__(self, container, root_main_menu):
+        super().__init__(container)
 
-    def redirect_logging(self):
-        self.logger = PrintLogger(self.log_widget)
+        self.fix_thread = None
+        self.fix_thread_kill_event = threading.Event()
 
-        sys.stdout = self.logger
-        sys.stderr = self.logger
+        self.root_main_menu = root_main_menu
+
+        self.scrape_labelframe = ttk.Labelframe(self, text = "Arreglar base de datos")
+        self.scrape_labelframe.grid(row = 0, column = 0, columnspan = 3, padx=10, pady=10, ipadx=5, ipady=5, sticky=tk.NSEW)
+
+        self.fix_button = ttk.Button(self.scrape_labelframe, text="Arreglar base de datos", command = lambda: self.fix_database(),)
+        self.fix_button.grid(row = 0, column = 0, padx=5)
+
+        self.cancel_button = ttk.Button(self.scrape_labelframe, text="Cancelar", command = lambda: self.cancel(),state=tk.DISABLED)
+        self.cancel_button.grid(row = 0, column = 1, padx=5)
+
+        self.back_button = ttk.Button(self.scrape_labelframe, text="Volver", command=lambda: self.main_menu())
+        self.back_button.grid(row = 0, column = 2, padx=5)
+
+        self.log_widget = ConsoleLogger(self)
+        self.log_widget.grid(row = 2, column = 0, rowspan=5, columnspan = 3)
+
+    def activate_frame(self):
+        self.log_widget.redirect_logging()
+
+    def fix_database(self):
+        self.fix_thread_kill_event.clear()
+        self.fix_button["state"] = tk.DISABLED
+        self.back_button["state"] = tk.DISABLED
+        self.cancel_button["state"] = tk.NORMAL
+        
+        self.scrape_thread = data.FixTableThread(
+            self.fix_thread_kill_event,
+            self.enable_controls
+            )
+        self.scrape_thread.start()
+    
+    def cancel(self):
+        self.cancel_button["state"] = tk.DISABLED
+        self.fix_thread_kill_event.set()
+        
+    def enable_controls(self):
+        self.fix_button["state"] = tk.NORMAL
+        self.back_button["state"] = tk.NORMAL
+        self.cancel_button["state"] = tk.DISABLED
+    
+    def main_menu(self):
+        self.log_widget.reset_logging()
+        self.root_main_menu()
+    
+
+# Ventana de dibujar el grafo
+class GraphFrame(ttk.Frame):
+    def __init__(self, container, root_main_menu):
+        super().__init__(container)
+
+        self.scrape_thread = None
+        self.scrape_thread_kill_event = threading.Event()
+
+        self.root_main_menu = root_main_menu
+
+        self.basedon = tk.StringVar(self, "-- Todos --")
+        self.parentslist = None
+
+        self.graph_labelframe = ttk.Labelframe(self, text = "Grafo")
+        self.graph_labelframe.grid(row = 0, column = 0, columnspan = 3, padx=10, pady=10, ipadx=5, ipady=5, sticky=tk.NSEW)
+
+        self.filter_label = ttk.Label(self.graph_labelframe, text = "Basado en:")
+        self.filter_label.grid(row = 0, column = 0)
+
+        self.filter_entry = ttk.Combobox(self.graph_labelframe, textvariable = self.basedon)
+        self.filter_entry.grid(row = 0, column = 1)
+
+        self.graph_button = ttk.Button(self.graph_labelframe, text = "Generar grafo", command = lambda: self.generate_graph(),)
+        self.graph_button.grid(row = 0, column = 2, padx=5)
+
+        self.back_button = ttk.Button(self.graph_labelframe, text = "Volver", command=lambda: self.main_menu())
+        self.back_button.grid(row = 0, column = 3, padx=5)
+
+        self.stats_labelframe = ttk.Labelframe(self, text = "Estadisticas")
+        self.stats_labelframe.grid(row = 1, column = 0, columnspan = 3, padx=10, pady=10, ipadx=5, ipady=5, sticky=tk.NSEW)
+
+        self.basedon_button = ttk.Button(self.stats_labelframe, text = "Distros mas tomadas como base", command = lambda: self.generate_based_stats(),)
+        self.basedon_button.grid(row = 0, column = 2, padx=5)
+
+
+        # self.database_label = ttk.Label(self, text = "Database contents as a table: ")
+        # self.database_label.grid(row = 1, column = 0)
+
+        # self.database_columns = ("UrlName", "Name", "LastUpdated", "BasedOn", "Origin", "Architecture", "Desktop", "Category", "Status", "Popularity", "Description")
+        # self.database_table = ttk.Treeview(self, columns = self.database_columns, show = "headings")
+        # self.database_table.grid(row = 2, column = 0)
+        # self.database_table(yscroll=scrollbar.set)
+
+        
+
+    def activate_frame(self):
+        if os.path.exists("distros.csv"):
+            self.basedon.set("-- Todos --")
+
+            self.parentslist = data.get_parent_distros()
+            #Toma el diccionario de distros padre
+            _todos_list = ["-- Todos --"]
+            _p_list = []
+
+            #Va poniendo cada key como valor de la lista
+            for entry in self.parentslist:
+                _p_list.append(entry)
+
+            _p_list.sort()
+
+            #Asigna los valores a la lista.
+            self.filter_entry["values"] = _todos_list + _p_list
+        else:
+            self.filter_entry["values"] = ["NO EXISTE DISTROS.CSV"]
+            self.basedon.set("NO EXISTE DISTROS.CSV")
+
+    def main_menu(self):
+        self.root_main_menu()
+
+    def generate_graph(self):
+        if not os.path.exists("distros.csv"):
+            tk_showerror("Error", "No se encuentra el archivo: distros.csv. Intente scrapear distros para crear la base de datos.")
+            return    
+        plots.graph(self.basedon.get())
+    
+    def generate_based_stats(self):
+        if not os.path.exists("distros.csv"):
+            tk_showerror("Error", "No se encuentra el archivo: distros.csv. Intente scrapear distros para crear la base de datos.")
+            return
+        plots.basedon_stats()
+
 
 class App(tk.Tk):
     #Aca crea toda la GUI
@@ -189,16 +293,29 @@ class App(tk.Tk):
         self.appframe = MainFrame(self, self.scrape_distros_menu, self.fix_database_menu, self.draw_graph_menu)
         self.appframe.pack()
 
-        self.scrapeframe = ScrapeFrame(self)
+        self.scrapeframe = ScrapeFrame(self, self.main_menu)
 
+        self.fixframe = FixFrame(self, self.main_menu)
+
+        self.graphframe = GraphFrame(self, self.main_menu)
+    
+    def main_menu(self):
+        self.scrapeframe.pack_forget()
+        self.fixframe.pack_forget()
+        self.graphframe.pack_forget()
+        self.appframe.pack()
 
     def scrape_distros_menu(self):
         self.appframe.pack_forget()
         self.scrapeframe.pack()
+        self.scrapeframe.activate_frame()
 
     def fix_database_menu(self):
         self.appframe.pack_forget()
+        self.fixframe.pack()
+        self.fixframe.activate_frame()
 
     def draw_graph_menu(self):
-        #self.appframe.pack_forget()
-        graph()
+        self.appframe.pack_forget()
+        self.graphframe.pack()
+        self.graphframe.activate_frame()

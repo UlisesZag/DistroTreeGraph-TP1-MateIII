@@ -1,41 +1,20 @@
-#Librerias standard
-import requests
-import json
-import re
+"""
+DISTROTREE GRAPH v0.1dev
+Hecho por Ulises Zagare, para el curso de Matematica III de la carrera TPI en la Universidad Nacional de San Martin.
 
-#Librerias pip
-import matplotlib.pyplot as plt
-import networkx
-from bs4 import BeautifulSoup
+Archivos fuente:
+main.py #Archivo main. Llama a la aplicacion.
+modules/data.py #Modulo con varias funciones de procesado de la base de datos.
+modules/plots.py #Modulo con funciones para crear graficos con matplotlib y networkx.
+modules/scraping.py #Modulo con funciones para sacar datos de distrowatch.
+modules/ui.py #Modulo con la interfaz de usuario.
+"""
 
 #Librerias de progama
-import modules.scraping as scraping
-import modules.data as data
 import modules.ui as ui
 
 if __name__ == "__main__":
-    print("DistroTree Graph v0.1dev")
-
-    # print("1: Parsear distros. 2: Buscar y guardar distros individuales. 0: Mostrar grafo")
-    # opcion = input(":")
-
-    # if opcion == "1":
-    #     scraping.distrowatch_alltocsv()
-    # if opcion == "0": 
-    #     b = input("Basados en: ").lower()
-    #     #data.fix_table()
-    #     ui.graph(b)
-    # if opcion == "2":
-    #     while True: 
-    #         distro = input("Ingrese una distro linux: ")
-    #         ld = scraping.distrowatch_linuxdistro(distro)
-
-    #         if ld == None:
-    #             print("No se encontro su distro linux buscada.")
-    #             continue
-
-    #         data.print_linuxdistro(ld)
-    #         data.save_linux_distro(ld)
+    print("--- DistroTree Graph v0.1dev ---")
 
     app = ui.App()
     app.mainloop()
