@@ -9,24 +9,36 @@ import pandas as pd
 
 from modules.data import LinuxDistro
 
-distrowatch_scrape_patterns = [
-    "\n",
-    "Last Update: ",
-    "OS Type: ",
-    "Based on: ",
-    "Origin: ",
-    "Architecture: ",
-    "Desktop: ",
-    "Category: ",
-    "Status: ",
-    "Popularity: ",
-    "Popularity (hits per day): 12 months: ",
-    ", 6 months: ",
-    ", 3 months: ",
-    ", 4 weeks: ",
-    ", 1 week: ",
-    "Average visitor rating: "
-]
+distrowatch_scrape_patterns = {
+    "Name: ": "$$$$$0",
+    "Last Update: ": "$$$$$1",
+    "OS Type: ": "$$$$$2",
+    "Based on: ": "$$$$$3",
+    "Origin: ": "$$$$$4",
+    "Architecture: ": "$$$$$5",
+    "Desktop: ": "$$$$$6",
+    "Category: ": "$$$$$7",
+    "Status: ": "$$$$$8",
+    "Popularity: ": "$$$$$9",
+    "Popularity (hits per day)": "$$$$$B",
+    "hits per day)": "$$$$$A",
+    "Not ranked": "$$$$$A"
+}
+
+patterns_positions = {
+    "$$0": 0,
+    "$$1": 1,
+    "$$2": 2,
+    "$$3": 3,
+    "$$4": 4,
+    "$$5": 5,
+    "$$6": 6,
+    "$$7": 7,
+    "$$8": 8,
+    "$$9": 9,
+    "$$A": 10,
+    "$$B": 11
+}
 
 def distrowatch_getrealname(distro):
     req = requests.get("https://distrowatch.com/table.php?distribution="+distro)
@@ -52,9 +64,12 @@ def distrowatch_linuxdistro(distro):
     urlname = req.url.split("https://distrowatch.com/table.php?distribution=")[1]
     print("URL Name:",urlname)
 
-    for i in distrowatch_scrape_patterns:
-        datos = datos.replace(i, "$$$")
+    datos = datos.replace("\n", "")
 
+    for i in distrowatch_scrape_patterns.keys():
+        datos = datos.replace(i, distrowatch_scrape_patterns[i])
+
+    datos = "$$0"+datos
     datos = datos.split("$$$")
 
     for index, i in enumerate(datos):
@@ -65,6 +80,19 @@ def distrowatch_linuxdistro(distro):
     while datos.count("") != 0:
         datos.remove("") 
     
+    datos_org = ["" for i in range(0, 17)]
+    for dat in datos:
+        for i in distrowatch_scrape_patterns.values():
+            patkey = i.replace("$$$", "")
+            if dat.startswith(patkey):
+                dat_append = dat.replace(patkey, "")
+                datos_org[patterns_positions[patkey]] = dat_append
+                break
+    
+    datos = datos_org
+    
+    print(datos)
+
     ld = LinuxDistro(urlname, datos)
     return ld
 

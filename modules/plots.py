@@ -46,7 +46,7 @@ def graph(basedon = ""):
 
     #PARA HACER LOS TAMAÑOS
     # Toma el diccionario de basedons
-    basedon_dict = data.get_parent_distros()
+    basedon_dict = data.get_property_quantity("BasedOn")
     for distro in nx.nodes(grafo):
         continuing = False
         for parent_distro in basedon_dict:
@@ -92,15 +92,15 @@ def graph(basedon = ""):
 
     plt.show()
 
-def basedon_stats():
+def dict_stats(prop: str, title: str, ylabel: str):
     fig = plt.figure()
     ax = fig.add_subplot(111)
 
-    based_distros = data.get_parent_distros()
+    based_distros = data.get_property_quantity(prop)
 
     ax.bar(based_distros.keys(), based_distros.values())
     ax.tick_params(axis='x', labelrotation=90)
-    ax.set_ylabel("Distribuciones")
-    ax.set_title("Distribuciones mas usadas como base:")
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
 
     plt.show()

@@ -212,6 +212,36 @@ class GraphFrame(ttk.Frame):
         self.basedon = tk.StringVar(self, "-- Todos --")
         self.parentslist = None
 
+        self.gen_basedon = {
+            "prop": "BasedOn",
+            "title": "Distribuciones usadas como base",
+            "ylabel": "Distribuciones linux"
+        }
+
+        self.gen_architecture = {
+            "prop": "Architecture",
+            "title": "Distribuciones por arquitectura",
+            "ylabel": "Distribuciones linux"
+        }
+
+        self.gen_category = {
+            "prop": "Category",
+            "title": "Distribuciones por categoria",
+            "ylabel": "Distribuciones linux"
+        }
+
+        self.gen_desktop = {
+            "prop": "Desktop",
+            "title": "Distribuciones por entorno de escritorio",
+            "ylabel": "Distribuciones linux"
+        }
+
+        self.gen_status = {
+            "prop": "Status",
+            "title": "Distribuciones por actividad",
+            "ylabel": "Distribuciones linux"
+        }
+
         self.graph_labelframe = ttk.Labelframe(self, text = "Grafo")
         self.graph_labelframe.grid(row = 0, column = 0, columnspan = 3, padx=10, pady=10, ipadx=5, ipady=5, sticky=tk.NSEW)
 
@@ -230,25 +260,27 @@ class GraphFrame(ttk.Frame):
         self.stats_labelframe = ttk.Labelframe(self, text = "Estadisticas")
         self.stats_labelframe.grid(row = 1, column = 0, columnspan = 3, padx=10, pady=10, ipadx=5, ipady=5, sticky=tk.NSEW)
 
-        self.basedon_button = ttk.Button(self.stats_labelframe, text = "Distros mas tomadas como base", command = lambda: self.generate_based_stats(),)
-        self.basedon_button.grid(row = 0, column = 2, padx=5)
+        self.basedon_button = ttk.Button(self.stats_labelframe, text = "Distros mas tomadas como base", command = lambda: self.generate_stats(**self.gen_basedon))
+        self.basedon_button.grid(row = 0, column = 0, padx=5, sticky = tk.NSEW)
 
+        self.arch_button = ttk.Button(self.stats_labelframe, text = "Distros por arquitectura", command = lambda: self.generate_stats(**self.gen_architecture))
+        self.arch_button.grid(row = 0, column = 1, padx=5, sticky = tk.NSEW)
 
-        # self.database_label = ttk.Label(self, text = "Database contents as a table: ")
-        # self.database_label.grid(row = 1, column = 0)
+        self.cat_button = ttk.Button(self.stats_labelframe, text = "Distros por categoria", command = lambda: self.generate_stats(**self.gen_category))
+        self.cat_button.grid(row = 1, column = 0, padx=5, sticky = tk.NSEW)
 
-        # self.database_columns = ("UrlName", "Name", "LastUpdated", "BasedOn", "Origin", "Architecture", "Desktop", "Category", "Status", "Popularity", "Description")
-        # self.database_table = ttk.Treeview(self, columns = self.database_columns, show = "headings")
-        # self.database_table.grid(row = 2, column = 0)
-        # self.database_table(yscroll=scrollbar.set)
+        self.cat_button = ttk.Button(self.stats_labelframe, text = "Distros por entorno de escritorio", command = lambda: self.generate_stats(**self.gen_desktop))
+        self.cat_button.grid(row = 1, column = 1, padx=5, sticky = tk.NSEW)
 
+        self.cat_button = ttk.Button(self.stats_labelframe, text = "Distros por actividad", command = lambda: self.generate_stats(**self.gen_status))
+        self.cat_button.grid(row = 2, column = 0, padx=5, sticky = tk.NSEW)
         
 
     def activate_frame(self):
         if os.path.exists("distros.csv"):
             self.basedon.set("-- Todos --")
 
-            self.parentslist = data.get_parent_distros()
+            self.parentslist = data.get_property_quantity("BasedOn")
             #Toma el diccionario de distros padre
             _todos_list = ["-- Todos --"]
             _p_list = []
@@ -274,11 +306,12 @@ class GraphFrame(ttk.Frame):
             return    
         plots.graph(self.basedon.get())
     
-    def generate_based_stats(self):
+    def generate_stats(self, prop, title, ylabel):
         if not os.path.exists("distros.csv"):
             tk_showerror("Error", "No se encuentra el archivo: distros.csv. Intente scrapear distros para crear la base de datos.")
             return
-        plots.basedon_stats()
+        
+        plots.dict_stats(prop, title, ylabel)
 
 
 class App(tk.Tk):

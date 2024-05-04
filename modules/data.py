@@ -1,6 +1,7 @@
 import pandas as pd
 import modules.scraping as scraping
 import threading
+import re
 
 #Clase con los datos de una distribucion linux
 #Creado a partir de scrapear una pagina de distrowatch
@@ -16,7 +17,7 @@ class LinuxDistro():
         self.desktop = datos[6].split(", ")
         self.category = datos[7].split(", ")
         self.status = datos[8]
-        self.popularity = datos[9]
+        self.popularity = datos[9]+")"
         self.description = datos[10]
 
 def print_linuxdistro(ld: LinuxDistro):
@@ -35,10 +36,23 @@ Popularidad: {ld.popularity}
 Descripction: {ld.description}
 """)
 
+def clean_row(row: pd.Series):
+    row = row.str.replace(r"\s*\(.*?\)",r"",regex=True) #Saca los parentesis como (Stable) (LTS) (Testing) (+18 version) etc
+    row = row.str.replace(r"^(\ *?)(.*)(\ *?)$", r"\2", regex=True)
+    row = row.str.strip()
+    return row
+
+def clean_string(string: str):
+    string = re.sub(r"\s*\(.*?\)", r"", string) #Saca los parentesis como (Stable) (LTS) (Testing) (+18 version) etc
+    string = re.sub(r"^(\ *?)(.*)(\ *?)$", r"\2", string)
+    string = str.strip()
+    return string
+
 def load_distros_table():
     table = pd.read_csv("distros.csv", sep="\t") #Elegi el tabulador porque es el menos probable que se use
-    table["BasedOn"] = table["BasedOn"].str.replace(r"\s*\(.*?\)",r"",regex=True) #Saca los parentesis como (Stable) (LTS) (Testing) (+18 version) etc
-    table["BasedOn"] = table["BasedOn"].str.replace(r"^(.*)(\s)$", r"\1", regex=True)
+    table["BasedOn"] = clean_row(table["BasedOn"])
+    table["Category"] = clean_row(table["Category"])
+    table["Architecture"] = clean_row(table["Architecture"])
     return table
 
 def save_linux_distro(ld):
@@ -61,12 +75,12 @@ def save_linux_distro(ld):
 
     table.to_csv("distros.csv", sep="\t", index=False)
 
-def get_parent_distros():
+def get_property_quantity(prop: str):
     parents_list = {}
     table = pd.read_csv("distros.csv", sep="\t")
     
     for index, row in table.iterrows():
-        for b in row["BasedOn"].split(";"):
+        for b in row[prop].split(";"):
             if not b in parents_list:
                 parents_list[b] = 1
             else:
@@ -87,8 +101,8 @@ class FixTableThread(threading.Thread):
 
         table = load_distros_table()
         print("Stripping strings...")
-        table["BasedOn"] = table["BasedOn"].str.replace(r"\s*(.*)\s*", r"\1", regex=True)
-        table["UrlName"] = table["UrlName"].str.replace(r"\s*(.*)\s*", r"\1", regex=True)
+        table["BasedOn"] = table["BasedOn"].str.strip()
+        table["UrlName"] = table["UrlName"].str.strip()
         
         table.to_csv("distros.csv", sep="\t", index=False)
 
@@ -103,7 +117,8 @@ class FixTableThread(threading.Thread):
             #Algunos tienen varios BasedOn, tiene que separarlos
             for bon in b.split(";"):
                 if not row["BasedOn"] == "independent" and not bon in table["UrlName"].values:
-                    print(f"Arreglando {row["Name"]} basado en {bon}", end="")
+                    rowname = row["Name"]
+                    print(f"Arreglando {rowname} basado en {bon}", end="")
                     realname = scraping.distrowatch_getrealname(bon)
                     if bon == realname:
                         print(f"\nIntentando obtener: {realname}")
