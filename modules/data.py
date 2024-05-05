@@ -2,6 +2,7 @@ import pandas as pd
 import modules.scraping as scraping
 import threading
 import re
+import requests
 
 #Clase con los datos de una distribucion linux
 #Creado a partir de scrapear una pagina de distrowatch
@@ -39,24 +40,26 @@ Descripction: {ld.description}
 def clean_row(row: pd.Series):
     row = row.str.replace(r"\s*\(.*?\)",r"",regex=True) #Saca los parentesis como (Stable) (LTS) (Testing) (+18 version) etc
     row = row.str.replace(r"^(\ *?)(.*)(\ *?)$", r"\2", regex=True)
+    row = row.str.replace(r"^(.*?)%20\w*;?$", r"\1", regex=True)
     row = row.str.strip()
     return row
 
 def clean_string(string: str):
     string = re.sub(r"\s*\(.*?\)", r"", string) #Saca los parentesis como (Stable) (LTS) (Testing) (+18 version) etc
     string = re.sub(r"^(\ *?)(.*)(\ *?)$", r"\2", string)
-    string = str.strip()
+    string = re.sub(r"%20.*", r"", string) #A veces aparecen %20s que representan espacios dentro de un url.
+    string = string.strip()
     return string
 
 def load_distros_table():
-    table = pd.read_csv("distros.csv", sep="\t") #Elegi el tabulador porque es el menos probable que se use
+    table = pd.read_csv("distros.csv", sep="\t", keep_default_na=False) #Elegi el tabulador porque es el menos probable que se use
     table["BasedOn"] = clean_row(table["BasedOn"])
     table["Category"] = clean_row(table["Category"])
     table["Architecture"] = clean_row(table["Architecture"])
     return table
 
 def save_linux_distro(ld):
-    table = pd.read_csv("distros.csv", sep="\t")
+    table = load_distros_table()
     new_row = {
         "UrlName": ld.urlname,
         "Name": ld.name,
@@ -75,9 +78,10 @@ def save_linux_distro(ld):
 
     table.to_csv("distros.csv", sep="\t", index=False)
 
+#Obtiene la cantidad de distros que usan cada una de las propiedades.
 def get_property_quantity(prop: str):
     parents_list = {}
-    table = pd.read_csv("distros.csv", sep="\t")
+    table = load_distros_table()
     
     for index, row in table.iterrows():
         for b in row[prop].split(";"):
@@ -86,7 +90,18 @@ def get_property_quantity(prop: str):
             else:
                 parents_list[b] += 1
     
+    parents_list.pop("", None)
+
     return parents_list
+
+#Obtiene la cantidad de entradas en el CSV
+def number_distros_csv():
+    table = load_distros_table()
+    q = 0
+    for i in table.iterrows():
+        q += 1
+
+    return q
 
 # Algunas entradas tienen un BasedOn que no existe en la tabla. Cuando no existe averigua su nombre real
 # y lo cambia en la tabla
@@ -119,10 +134,22 @@ class FixTableThread(threading.Thread):
                 if not row["BasedOn"] == "independent" and not bon in table["UrlName"].values:
                     rowname = row["Name"]
                     print(f"Arreglando {rowname} basado en {bon}", end="")
-                    realname = scraping.distrowatch_getrealname(bon)
+
+                    try:
+                        realname = scraping.distrowatch_getrealname(bon)
+                    except requests.exceptions.ConnectionError:
+                        print("\nERROR: No se pudo conectar al sitio. Compruebe su conexion a internet.")
+                        self.enable_controls()
+                        return
+                    
                     if bon == realname:
                         print(f"\nIntentando obtener: {realname}")
-                        ld = scraping.distrowatch_linuxdistro(realname)
+                        try:
+                            ld = scraping.distrowatch_linuxdistro(realname)
+                        except requests.exceptions.ConnectionError:
+                            print("\nERROR: No se pudo conectar al sitio. Compruebe su conexion a internet.")
+                            self.enable_controls()
+                            return
 
                         if ld == None:
                             print(f"No se pudo obtener: {realname}. Salteando...")
@@ -131,7 +158,6 @@ class FixTableThread(threading.Thread):
                         new_row = scraping.distro_to_dataframe(ld)
                         table = pd.concat([table, new_row], ignore_index=True)
                         fixed_entries += 1
-
                     else:
                         realnames_list.append(realname)
                         print(f" -> {realname}...", end="\n")

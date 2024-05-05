@@ -2,11 +2,16 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import pandas
 
+from tkinter.messagebox import showerror as tk_showerror
+
 import modules.scraping as scraping
 import modules.data as data
 
-def graph(basedon = ""):
+def graph(options_dict):
     table = data.load_distros_table() #Carga la tabla con todos los datos
+
+    basedon = options_dict["basedon"]
+    first_elements = options_dict["first"]
 
     #Configura el matplotlib
     fig, ax = plt.subplots(figsize=(10,10))
@@ -19,6 +24,7 @@ def graph(basedon = ""):
     sizes_array = []
 
     #Itera por la tabla para sacar las relaciones y los nombres reales
+    ind = 0
     for index, row in table.iterrows():
         name = row["UrlName"]
         complete_name = row["Name"]
@@ -35,12 +41,21 @@ def graph(basedon = ""):
         #Añade el nombre a la lista
         names_map[name] = complete_name
 
+        ind+=1
+        if ind >= first_elements:
+            break
+
     #Crea el grafo
     grafo = nx.DiGraph(relaciones)
     
     #Crea un arbol
     if basedon == "-- Todos --":
-        grafo = nx.bfs_tree(grafo, source="independent") #Comentar si se quiere todos los nodos.
+        grafo2 = grafo #Guarda un backup del grafo
+        try:
+            grafo = nx.bfs_tree(grafo, source="independent") #Comentar si se quiere todos los nodos.
+        except nx.NetworkXError:
+            tk_showerror("Error de creacion en el arbol.", "No se pudo crear el arbol. Se mostraran relaciones sueltas entre distribuciones.")
+            grafo = grafo2
     else:
         grafo = nx.bfs_tree(grafo, basedon)
 
@@ -102,5 +117,7 @@ def dict_stats(prop: str, title: str, ylabel: str):
     ax.tick_params(axis='x', labelrotation=90)
     ax.set_ylabel(ylabel)
     ax.set_title(title)
+
+    plt.subplots_adjust(bottom=0.3)
 
     plt.show()

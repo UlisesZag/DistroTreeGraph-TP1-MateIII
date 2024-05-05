@@ -40,6 +40,7 @@ patterns_positions = {
     "$$B": 11
 }
 
+#Busca una distro por string y devuelve la distro que redirecciona la pagina
 def distrowatch_getrealname(distro):
     req = requests.get("https://distrowatch.com/table.php?distribution="+distro)
     try:
@@ -53,6 +54,7 @@ def distrowatch_linuxdistro(distro):
     req = requests.get("https://distrowatch.com/table.php?distribution="+distro)
     soup = BeautifulSoup(req.text, features="html.parser")
 
+    #Si no encontro la pagina
     if soup is None:
         return None
 
@@ -61,17 +63,19 @@ def distrowatch_linuxdistro(distro):
     except AttributeError:
         return None
 
+    #Saca el nombre de distro de url como para usarlo de ID unica
     urlname = req.url.split("https://distrowatch.com/table.php?distribution=")[1]
     print("URL Name:",urlname)
 
     datos = datos.replace("\n", "")
-
+    #Cambia cada texto por un ide ej $$1 $$2...
     for i in distrowatch_scrape_patterns.keys():
         datos = datos.replace(i, distrowatch_scrape_patterns[i])
 
     datos = "$$0"+datos
-    datos = datos.split("$$$")
+    datos = datos.split("$$$")#Parte el string
 
+    #Saca los espacios en blanco
     for index, i in enumerate(datos):
         if re.match(r"^\s*$", i):
             datos[index] = ""
@@ -80,6 +84,7 @@ def distrowatch_linuxdistro(distro):
     while datos.count("") != 0:
         datos.remove("") 
     
+    #Aca asigna todos los datos a una lista con todos sus valores inicializados en ""
     datos_org = ["" for i in range(0, 17)]
     for dat in datos:
         for i in distrowatch_scrape_patterns.values():
@@ -91,20 +96,9 @@ def distrowatch_linuxdistro(distro):
     
     datos = datos_org
     
-    print(datos)
-
+    #La convierte a un objeto LinuxDistro y devuelve
     ld = LinuxDistro(urlname, datos)
     return ld
-
-def distrowatch_numberdistros():
-    req = requests.get("https://distrowatch.com/weekly.php?issue=current")
-    soup = BeautifulSoup(req.text, features="html.parser")
-
-    alldistributions = soup(text=re.compile(r"all distributions"))
-    text = alldistributions[0].parent.parent.text
-    alldtext = re.search(r"Number of all distributions in the database: \d*", text)
-    num = int(re.sub(r"Number of all distributions in the database: ", "", alldtext.group()))
-    return num
 
 # Obtiene una lista con los nombres de cada distribucion linux disponible
 def distrowatch_list():
@@ -129,6 +123,7 @@ def distrowatch_list():
 
     return distros
 
+#Convierte un objeto LinuxDistro a un Dataframe
 def distro_to_dataframe(ld):
     new_row = {
         "UrlName": ld.urlname,
@@ -148,18 +143,20 @@ def distro_to_dataframe(ld):
     new_dataframe = pd.DataFrame([new_row])
     return new_dataframe
 
+#Este hilo scrapea todas las distros de distrowatch 
 class ScrapeAllThread(threading.Thread):
-    def __init__(self, stop_flag, enable_scrape_button, scrape_allagain):
+    def __init__(self, stop_flag, enable_controls, scrape_allagain):
         super().__init__()
-        self.stop_flag = stop_flag
-        self.enable_scrape_button = enable_scrape_button
-        self.scrape_allagain = scrape_allagain
+        self.stop_flag = stop_flag #Flag de cancelacion
+        self.enable_controls = enable_controls #Funcion para reactivar los controles
+        self.scrape_allagain = scrape_allagain #Scrapear todo de nuevo?
 
     def run(self):
         distributions_scraped = 0
         distributions_failed = 0
         already_in_database = 0
 
+        #Renombra el csv
         if self.scrape_allagain:
             print("Scrapeando todo de nuevo...")
             if os.path.exists("distros_old.csv"):
@@ -167,33 +164,54 @@ class ScrapeAllThread(threading.Thread):
             if os.path.exists("distros.csv"):
                 os.rename("distros.csv", "distros_old.csv")
 
+        #Abre el csv
         if os.path.exists("distros.csv"):
             table = pd.read_csv("distros.csv", sep="\t") #Elegi el tabulador porque es el menos probable que se use
         else:
             table = pd.DataFrame(columns=["UrlName","Name", "LastUpdated", "OSType", "BasedOn", "Origin", "Architecture", "Desktop", "Category", "Status", "Popularity", "Description"])
 
+        #OBTENCION DE LA LISTA DE DISTRIBUCIONES
         print("Obteniendo lista de distribuciones linux . . .")
-        available_distros = distrowatch_list()
+        try:
+            available_distros = distrowatch_list()
+        except requests.exceptions.ConnectionError:
+            print("ERROR: No se pudo conectar al sitio. Compruebe su conexion a internet.")
+            self.enable_controls()
+            return
         print("Numero de distribuciones linux disponible:", len(available_distros))
 
+        #EXTRACCION DE CADA DISTRIBUCION
         for num, distro in enumerate(available_distros):
-            if self.stop_flag.is_set():
+            if self.stop_flag.is_set(): #Cancela si el flag de cancelacion esta activado
                 break
 
+            #Si ya esta en la tabla lo saltea
             if distro in table["Name"].values:
                 print(f"Salteando {distro} ya que ya esta en la base de datos.")
                 already_in_database += 1
                 continue
 
+            #Intenta obtener una distribucion
             print(f"Obteniendo: {distro}... ({num+1}/{len(available_distros)})")
-            ld = distrowatch_linuxdistro(distro)
+            try:
+                ld = distrowatch_linuxdistro(distro)
+            except requests.exceptions.ConnectionError:
+                print("\nERROR: No se pudo conectar al sitio. Compruebe su conexion a internet.")
+                self.enable_controls()
+                return
 
+            #Si no trata con otro nombre.
             if ld == None:
                 print(f"No se encontro: {distro}.")
                 alt_name = distro.split(" ")[0]
                 print(f"Intentando con: {alt_name}")
 
-                ld = distrowatch_linuxdistro(alt_name)
+                try:
+                    ld = distrowatch_linuxdistro(alt_name)
+                except requests.exceptions.ConnectionError:
+                    print("\nERROR: No se pudo conectar al sitio. Compruebe su conexion a internet.")
+                    self.enable_controls()
+                    return
 
                 if ld == None:
                     print(f"Fallo al intentar obtener: {distro} or {alt_name}. Salteando...")
@@ -207,6 +225,7 @@ class ScrapeAllThread(threading.Thread):
                 already_in_database += 1
                 continue
 
+            #Convierte el objeto LinuxDistro a un dataframe y luego lo concatena al original
             new_row = distro_to_dataframe(ld)
             
             table = pd.concat([table, new_row], ignore_index=True)
@@ -217,4 +236,4 @@ class ScrapeAllThread(threading.Thread):
         print(f" Distros obtenidas exitosamente: {distributions_scraped}")
         print(f" Distros falladas: {distributions_failed}")
         print(f" Ya estaban en la base de datos: {already_in_database}")
-        self.enable_scrape_button()
+        self.enable_controls()

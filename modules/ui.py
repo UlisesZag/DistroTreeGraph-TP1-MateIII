@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from tkinter.scrolledtext import ScrolledText
-from tkinter.messagebox import showerror as tk_showerror
+from tkinter.messagebox import showerror as tk_showerror, showinfo as tk_showinfo
 import sys
 import threading
 import os
@@ -22,29 +22,36 @@ class MainFrame(ttk.Frame):
 
         #################### OPCIONES DE SCRAPING ##################################
         self.scrape_labelframe = ttk.Labelframe(self, text="Opciones de scraping: ")
-        self.scrape_labelframe.grid(row = 1, column = 0, padx=10, pady=10, ipadx=5, ipady=5, sticky=tk.NSEW)
+        self.scrape_labelframe.grid(row = 1, column = 0, columnspan=2, padx=10, pady=10, ipadx=5, ipady=5, sticky=tk.NSEW)
 
         self.scrape_button = ttk.Button(self.scrape_labelframe, text="Scrapear Distros", command = self.scrape_distros)
-        self.scrape_button.grid(row = 0, column = 0, sticky=tk.W, padx=5)
+        self.scrape_button.grid(row = 0, column = 0, sticky=tk.NSEW, padx=5)
 
         self.scrape_label = ttk.Label(self.scrape_labelframe, justify=tk.LEFT, text="Scrapea distrowatch.com y guarda los datos de \ncada distribucion linux en la base de datos.")
         self.scrape_label.grid(row = 0, column = 1, sticky=tk.W, padx=10)
 
         self.fix_button = ttk.Button(self.scrape_labelframe, text="Arreglar Base de datos", command = self.fix_database)
-        self.fix_button.grid(row = 1, column = 0, sticky=tk.W, padx=5)
+        self.fix_button.grid(row = 1, column = 0, sticky=tk.NSEW, padx=5)
 
         self.fix_label = ttk.Label(self.scrape_labelframe, justify=tk.LEFT, text="Arregla la base de datos. Si aparece varias veces la misma \ndistro en el grafico, se debe arreglar la base de datos.")
         self.fix_label.grid(row = 1, column = 1, sticky=tk.W, padx=10)
 
         #################### OPCIONES DE GRAFICADO ##################################
         self.graph_labelframe = ttk.Labelframe(self, text = "Opciones de graficado: ")
-        self.graph_labelframe.grid(row = 2, column = 0, padx=10, pady=10, ipadx=5, ipady=5, sticky=tk.NSEW)
+        self.graph_labelframe.grid(row = 2, column = 0, columnspan=2, padx=10, pady=10, ipadx=5, ipady=5, sticky=tk.NSEW)
 
         self.graph_button = ttk.Button(self.graph_labelframe, text = "Mostrar Grafico", command = self.draw_graph)
-        self.graph_button.grid(row=0, column=0, sticky=tk.W, padx=5)
+        self.graph_button.grid(row=0, column=0, sticky=tk.NSEW, padx=5)
 
         self.graph_label = ttk.Label(self.graph_labelframe, justify=tk.LEFT, text="Muestra el grafico de arbol con todas las distribuciones \nlinux en la base de datos.")
         self.graph_label.grid(row=0, column=1, sticky=tk.W, padx=5)
+
+        #################### ETC ####################################################
+        self.about_button = ttk.Button(self, text = "Acerca de...", command = self.about)
+        self.about_button.grid(row = 3, column = 0, sticky = tk.NSEW, padx = 5, pady = 5)
+
+        self.salir_button = ttk.Button(self, text = "Cerrar", command = self.salir)
+        self.salir_button.grid(row = 3, column = 1, sticky = tk.NSEW, padx = 5, pady = 5)
 
     def scrape_distros(self):
         self.root_scrape_distros()
@@ -54,6 +61,21 @@ class MainFrame(ttk.Frame):
 
     def draw_graph(self):
         self.root_draw_graph()
+    
+    def about(self):
+        tk_showinfo("DistroTree Graph - Acerca de...", 
+"""
+DistroTree Graph - Ulises Zagare, 2024.
+Desarrollado para la cursada de Matematica III para TPI en la Universidad Nacional de San Martin.
+
+Esta aplicacion saca datos acerca de distribuciones linux a partir de distrowatch: https://distrowatch.com/
+Luego crea un grafico de arbol de como se van derivando las distribuciones. Se uso NetworkX para poder crear el grafico.
+Tambien muestra varias estadisticas con MatPlotLib.
+"""
+                    )
+    
+    def salir(self):
+        pass
 
 
 # Completamente sacado de stackoverflow
@@ -209,8 +231,11 @@ class GraphFrame(ttk.Frame):
 
         self.root_main_menu = root_main_menu
 
-        self.basedon = tk.StringVar(self, "-- Todos --")
         self.parentslist = None
+        self.distros_in_table = 0
+
+        self.basedon = tk.StringVar(self, "-- Todos --")
+        self.first_elements = tk.StringVar(self, str(self.distros_in_table))
 
         self.gen_basedon = {
             "prop": "BasedOn",
@@ -251,6 +276,12 @@ class GraphFrame(ttk.Frame):
         self.filter_entry = ttk.Combobox(self.graph_labelframe, textvariable = self.basedon)
         self.filter_entry.grid(row = 0, column = 1)
 
+        self.first_label = ttk.Label(self.graph_labelframe, text = "Los primeros:")
+        self.first_label.grid(row = 1, column = 0)
+
+        self.first_entry = ttk.Spinbox(self.graph_labelframe, textvariable = self.first_elements, from_=1, to=str(self.distros_in_table))
+        self.first_entry.grid(row = 1, column = 1)
+
         self.graph_button = ttk.Button(self.graph_labelframe, text = "Generar grafo", command = lambda: self.generate_graph(),)
         self.graph_button.grid(row = 0, column = 2, padx=5)
 
@@ -280,6 +311,10 @@ class GraphFrame(ttk.Frame):
         if os.path.exists("distros.csv"):
             self.basedon.set("-- Todos --")
 
+            self.distros_in_table = data.number_distros_csv()
+            self.first_elements.set(str(self.distros_in_table))
+            self.first_entry["to"]=str(self.distros_in_table)
+
             self.parentslist = data.get_property_quantity("BasedOn")
             #Toma el diccionario de distros padre
             _todos_list = ["-- Todos --"]
@@ -304,7 +339,14 @@ class GraphFrame(ttk.Frame):
         if not os.path.exists("distros.csv"):
             tk_showerror("Error", "No se encuentra el archivo: distros.csv. Intente scrapear distros para crear la base de datos.")
             return    
-        plots.graph(self.basedon.get())
+        
+        options_dict = {
+            "basedon": self.basedon.get(),
+            "first": min(max(int(self.first_elements.get()), 1), self.distros_in_table)
+        }
+        self.first_elements.set(str(options_dict["first"]))
+
+        plots.graph(options_dict)
     
     def generate_stats(self, prop, title, ylabel):
         if not os.path.exists("distros.csv"):
