@@ -3,3 +3,5 @@ main.spec
 build/
 dist/
 distros.csv
+__pycache__/
+modules/__pycache__/

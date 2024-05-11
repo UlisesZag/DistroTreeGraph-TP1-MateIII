@@ -9,6 +9,7 @@ import os
 import modules.scraping as scraping
 import modules.data as data
 import modules.plots as plots
+import main
 
 class MainFrame(ttk.Frame):
     def __init__(self, container, root_scrape_distros, root_fix_database, root_draw_graph):
@@ -50,9 +51,6 @@ class MainFrame(ttk.Frame):
         self.about_button = ttk.Button(self, text = "Acerca de...", command = self.about)
         self.about_button.grid(row = 3, column = 0, sticky = tk.NSEW, padx = 5, pady = 5)
 
-        self.salir_button = ttk.Button(self, text = "Cerrar", command = self.salir)
-        self.salir_button.grid(row = 3, column = 1, sticky = tk.NSEW, padx = 5, pady = 5)
-
     def scrape_distros(self):
         self.root_scrape_distros()
 
@@ -63,14 +61,16 @@ class MainFrame(ttk.Frame):
         self.root_draw_graph()
     
     def about(self):
-        tk_showinfo("DistroTree Graph - Acerca de...", 
-"""
-DistroTree Graph - Ulises Zagare, 2024.
+        tk_showinfo(f"{main.program_name} - Acerca de...", 
+f"""
+{main.program_name} {main.program_version} - Ulises Zagare, 2024.
 Desarrollado para la cursada de Matematica III para TPI en la Universidad Nacional de San Martin.
 
 Esta aplicacion saca datos acerca de distribuciones linux a partir de distrowatch: https://distrowatch.com/
 Luego crea un grafico de arbol de como se van derivando las distribuciones. Se uso NetworkX para poder crear el grafico.
 Tambien muestra varias estadisticas con MatPlotLib.
+
+Github: https://github.com/UlisesZag/DistroTreeGraph-TP1-MateIII
 """
                     )
     
@@ -113,6 +113,8 @@ class ScrapeFrame(ttk.Frame):
     def __init__(self, container, root_main_menu):
         super().__init__(container)
 
+        self.container = container
+
         self.scrape_thread = None
         self.scrape_thread_kill_event = threading.Event()
 
@@ -142,10 +144,13 @@ class ScrapeFrame(ttk.Frame):
         self.log_widget.redirect_logging()
 
     def scrape_distros(self):
-        self.scrape_thread_kill_event.clear()
+        self.scrape_thread_kill_event.clear() #Flag de fin de hilo
+        #Desactiva los botones
         self.scrape_button["state"] = tk.DISABLED
         self.back_button["state"] = tk.DISABLED
         self.cancel_button["state"] = tk.NORMAL
+
+        self.container.busy = True #La aplicacion no puede cerrarse hasta que el hilo termine
         
         self.scrape_thread = scraping.ScrapeAllThread(
             self.scrape_thread_kill_event, 
@@ -162,6 +167,7 @@ class ScrapeFrame(ttk.Frame):
         self.scrape_button["state"] = tk.NORMAL
         self.back_button["state"] = tk.NORMAL
         self.cancel_button["state"] = tk.DISABLED
+        self.container.busy = False #Habilita el cierre de la aplicacion
     
     def main_menu(self):
         self.log_widget.reset_logging()
@@ -171,6 +177,8 @@ class ScrapeFrame(ttk.Frame):
 class FixFrame(ttk.Frame):
     def __init__(self, container, root_main_menu):
         super().__init__(container)
+
+        self.container = container
 
         self.fix_thread = None
         self.fix_thread_kill_event = threading.Event()
@@ -200,6 +208,8 @@ class FixFrame(ttk.Frame):
         self.fix_button["state"] = tk.DISABLED
         self.back_button["state"] = tk.DISABLED
         self.cancel_button["state"] = tk.NORMAL
+
+        self.container.busy = True #La aplicacion no puede cerrarse hasta que el hilo termine
         
         self.scrape_thread = data.FixTableThread(
             self.fix_thread_kill_event,
@@ -215,6 +225,8 @@ class FixFrame(ttk.Frame):
         self.fix_button["state"] = tk.NORMAL
         self.back_button["state"] = tk.NORMAL
         self.cancel_button["state"] = tk.DISABLED
+
+        self.container.busy = False #Habilita el cierre de la aplicacion
     
     def main_menu(self):
         self.log_widget.reset_logging()
@@ -360,10 +372,13 @@ class App(tk.Tk):
     #Aca crea toda la GUI
     def __init__(self):
         super().__init__()
+        self.resizable(False, False)
+
+        self.busy = False
 
         self.menubar = tk.Menu(self)
         self.config(menu = self.menubar)
-        self.menubar.add_command(label="DistroTree Graph v0.1dev")
+        self.menubar.add_command(label=f"{main.program_name} {main.program_version}")
 
         self.appframe = MainFrame(self, self.scrape_distros_menu, self.fix_database_menu, self.draw_graph_menu)
         self.appframe.pack()
@@ -373,6 +388,8 @@ class App(tk.Tk):
         self.fixframe = FixFrame(self, self.main_menu)
 
         self.graphframe = GraphFrame(self, self.main_menu)
+
+        self.protocol("WM_DELETE_WINDOW", self.close_app)
     
     def main_menu(self):
         self.scrapeframe.pack_forget()
@@ -394,3 +411,9 @@ class App(tk.Tk):
         self.appframe.pack_forget()
         self.graphframe.pack()
         self.graphframe.activate_frame()
+
+    def close_app(self):
+        if not self.busy:
+            self.quit()
+        else:
+            tk_showinfo("Advertencia", "La operacion se esta ejecutando. Espere a que termine o cancelela antes de cerrar la aplicacion.")

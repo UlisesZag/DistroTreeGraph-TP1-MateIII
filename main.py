@@ -13,8 +13,11 @@ modules/ui.py #Modulo con la interfaz de usuario.
 #Librerias de progama
 import modules.ui as ui
 
+program_name = "DistroTree Graph"
+program_version = "v0.1dev"
+
 if __name__ == "__main__":
-    print("--- DistroTree Graph v0.1dev ---")
+    print(f"--- {program_name} {program_version} ---")
 
     app = ui.App()
     app.mainloop()
