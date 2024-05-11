@@ -1,3 +1,4 @@
+import matplotlib
 import matplotlib.pyplot as plt
 import networkx as nx
 import pandas
@@ -8,6 +9,7 @@ import modules.scraping as scraping
 import modules.data as data
 
 def graph(options_dict):
+    matplotlib.use("TkAgg")
     table = data.load_distros_table() #Carga la tabla con todos los datos
 
     basedon = options_dict["basedon"]
@@ -108,6 +110,8 @@ def graph(options_dict):
     plt.show()
 
 def dict_stats(prop: str, title: str, ylabel: str):
+    matplotlib.use("TkAgg")
+
     fig = plt.figure()
     ax = fig.add_subplot(111)
 

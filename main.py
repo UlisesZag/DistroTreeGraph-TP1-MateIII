@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 DISTROTREE GRAPH v0.1dev
 Hecho por Ulises Zagare, para el curso de Matematica III de la carrera TPI en la Universidad Nacional de San Martin.
