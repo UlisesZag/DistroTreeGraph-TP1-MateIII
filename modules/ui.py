@@ -11,6 +11,7 @@ import modules.data as data
 import modules.plots as plots
 import main
 
+#Menu inicial
 class MainFrame(ttk.Frame):
     def __init__(self, container, root_scrape_distros, root_fix_database, root_draw_graph):
         super().__init__(container)
@@ -203,6 +204,7 @@ class FixFrame(ttk.Frame):
     def activate_frame(self):
         self.log_widget.redirect_logging()
 
+    #Desactiva los controles y crea el hilo de arreglado
     def fix_database(self):
         self.fix_thread_kill_event.clear()
         self.fix_button["state"] = tk.DISABLED
@@ -220,7 +222,8 @@ class FixFrame(ttk.Frame):
     def cancel(self):
         self.cancel_button["state"] = tk.DISABLED
         self.fix_thread_kill_event.set()
-        
+    
+    #Cuando el hilo finaliza reestablece los controles
     def enable_controls(self):
         self.fix_button["state"] = tk.NORMAL
         self.back_button["state"] = tk.NORMAL
@@ -228,6 +231,7 @@ class FixFrame(ttk.Frame):
 
         self.container.busy = False #Habilita el cierre de la aplicacion
     
+    #Volver a menu principal
     def main_menu(self):
         self.log_widget.reset_logging()
         self.root_main_menu()
@@ -237,48 +241,43 @@ class FixFrame(ttk.Frame):
 class GraphFrame(ttk.Frame):
     def __init__(self, container, root_main_menu):
         super().__init__(container)
-
-        self.scrape_thread = None
-        self.scrape_thread_kill_event = threading.Event()
-
+        
         self.root_main_menu = root_main_menu
 
-        self.parentslist = None
+        self.parentslist = None #Basado en . . .
         self.distros_in_table = 0
 
         self.basedon = tk.StringVar(self, "-- Todos --")
         self.first_elements = tk.StringVar(self, str(self.distros_in_table))
 
+        #Diccionarios para generar estadisticas.
         self.gen_basedon = {
             "prop": "BasedOn",
             "title": "Distribuciones usadas como base",
             "ylabel": "Distribuciones linux"
         }
-
         self.gen_architecture = {
             "prop": "Architecture",
             "title": "Distribuciones por arquitectura",
             "ylabel": "Distribuciones linux"
         }
-
         self.gen_category = {
             "prop": "Category",
             "title": "Distribuciones por categoria",
             "ylabel": "Distribuciones linux"
         }
-
         self.gen_desktop = {
             "prop": "Desktop",
             "title": "Distribuciones por entorno de escritorio",
             "ylabel": "Distribuciones linux"
         }
-
         self.gen_status = {
             "prop": "Status",
             "title": "Distribuciones por actividad",
             "ylabel": "Distribuciones linux"
         }
 
+        #Elementos de UI
         self.graph_labelframe = ttk.Labelframe(self, text = "Grafo")
         self.graph_labelframe.grid(row = 0, column = 0, columnspan = 3, padx=10, pady=10, ipadx=5, ipady=5, sticky=tk.NSEW)
 
@@ -318,7 +317,7 @@ class GraphFrame(ttk.Frame):
         self.cat_button = ttk.Button(self.stats_labelframe, text = "Distros por actividad", command = lambda: self.generate_stats(**self.gen_status))
         self.cat_button.grid(row = 2, column = 0, padx=5, sticky = tk.NSEW)
         
-
+    #Si entra al frame:
     def activate_frame(self):
         if os.path.exists("distros.csv"):
             self.basedon.set("-- Todos --")
@@ -347,11 +346,13 @@ class GraphFrame(ttk.Frame):
     def main_menu(self):
         self.root_main_menu()
 
+    #UI: Ejecuta la funcion que arma el grafo con los parametros del menu
     def generate_graph(self):
         if not os.path.exists("distros.csv"):
             tk_showerror("Error", "No se encuentra el archivo: distros.csv. Intente scrapear distros para crear la base de datos.")
             return    
         
+        #Arma un diccionario con los argumentos para hacer el grafo
         options_dict = {
             "basedon": self.basedon.get(),
             "first": min(max(int(self.first_elements.get()), 1), self.distros_in_table)
@@ -374,11 +375,15 @@ class App(tk.Tk):
         super().__init__()
         self.resizable(False, False)
 
-        self.busy = False
+        self.busy = False #Flag si la app esta ejecutando un tarea o no
 
+        self.protocol("WM_DELETE_WINDOW", self.close_app)
+
+        #Titulo
         self.menubar = tk.Menu(self)
         self.config(menu = self.menubar)
         self.menubar.add_command(label=f"{main.program_name} {main.program_version}")
+
 
         self.appframe = MainFrame(self, self.scrape_distros_menu, self.fix_database_menu, self.draw_graph_menu)
         self.appframe.pack()
@@ -388,8 +393,6 @@ class App(tk.Tk):
         self.fixframe = FixFrame(self, self.main_menu)
 
         self.graphframe = GraphFrame(self, self.main_menu)
-
-        self.protocol("WM_DELETE_WINDOW", self.close_app)
     
     def main_menu(self):
         self.scrapeframe.pack_forget()
@@ -416,4 +419,7 @@ class App(tk.Tk):
         if not self.busy:
             self.quit()
         else:
-            tk_showinfo("Advertencia", "La operacion se esta ejecutando. Espere a que termine o cancelela antes de cerrar la aplicacion.")
+            tk_showinfo(
+                "Advertencia", 
+                "La operacion se esta ejecutando. Espere a que termine o cancelela antes de cerrar la aplicacion."
+                )
