@@ -15,7 +15,7 @@ modules/ui.py #Modulo con la interfaz de usuario.
 import modules.ui as ui
 
 program_name = "DistroTree Graph"
-program_version = "v0.1dev"
+program_version = "v0.2dev"
 
 if __name__ == "__main__":
     print(f"--- {program_name} {program_version} ---")

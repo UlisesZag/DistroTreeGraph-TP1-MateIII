@@ -8,6 +8,20 @@ from tkinter.messagebox import showerror as tk_showerror
 import modules.scraping as scraping
 import modules.data as data
 
+
+graph_themes = {
+    "Claro": {
+        "color_fondo": "#FFFFFF",
+        "color_texto": "#000000",
+        "color_nodo": "#77bded"
+    },
+    "Oscuro": {
+        "color_fondo": "#002244",
+        "color_texto": "#FFFFFF",
+        "color_nodo": "#003366"
+    }
+}
+
 def graph(options_dict):
     matplotlib.use("TkAgg")
     table = data.load_distros_table() #Carga la tabla con todos los datos
@@ -91,21 +105,26 @@ def graph(options_dict):
         #pos = nx.bfs_layout(grafo, start=basedon)
         pos = nx.spring_layout(grafo)
     
+    
+    color_fondo = graph_themes[options_dict["theme"]]["color_fondo"]
+    color_texto = graph_themes[options_dict["theme"]]["color_texto"]
+    color_nodo = graph_themes[options_dict["theme"]]["color_nodo"]
+
     draw_options = {
         "label": "Arbol de distribuciones de linux: ",
         "with_labels": True,
         "font_size": 7,
-        "font_color": "#FFFFFF",
+        "font_color": color_texto,
         "font_family": "monospace",
         "node_size": sizes_array,
-        "node_color": "#003366"
+        "node_color": color_nodo
     }
 
     nx.draw_networkx(grafo, pos, ax=ax, **draw_options)
 
     #Estilos,etc
     fig.tight_layout()
-    ax.set_facecolor("#002244")
+    ax.set_facecolor(color_fondo)
 
     plt.show()
 

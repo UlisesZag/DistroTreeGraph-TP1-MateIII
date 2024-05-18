@@ -249,6 +249,7 @@ class GraphFrame(ttk.Frame):
 
         self.basedon = tk.StringVar(self, "-- Todos --")
         self.first_elements = tk.StringVar(self, str(self.distros_in_table))
+        self.graph_theme = tk.StringVar(self, "Oscuro")
 
         #Diccionarios para generar estadisticas.
         self.gen_basedon = {
@@ -288,16 +289,22 @@ class GraphFrame(ttk.Frame):
         self.filter_entry.grid(row = 0, column = 1)
 
         self.first_label = ttk.Label(self.graph_labelframe, text = "Los primeros:")
-        self.first_label.grid(row = 1, column = 0)
+        self.first_label.grid(row = 0, column = 2)
 
         self.first_entry = ttk.Spinbox(self.graph_labelframe, textvariable = self.first_elements, from_=1, to=str(self.distros_in_table))
-        self.first_entry.grid(row = 1, column = 1)
+        self.first_entry.grid(row = 0, column = 3)
+
+        self.theme_label = ttk.Label(self.graph_labelframe, text = "Tema:")
+        self.theme_label.grid(row = 1, column = 0)
+
+        self.theme_entry = ttk.Combobox(self.graph_labelframe, textvariable = self.graph_theme, values=("Oscuro", "Claro"))
+        self.theme_entry.grid(row = 1, column = 1)
 
         self.graph_button = ttk.Button(self.graph_labelframe, text = "Generar grafo", command = lambda: self.generate_graph(),)
-        self.graph_button.grid(row = 0, column = 2, padx=5)
+        self.graph_button.grid(row = 1, column = 2, padx = 5, pady = 5)
 
         self.back_button = ttk.Button(self.graph_labelframe, text = "Volver", command=lambda: self.main_menu())
-        self.back_button.grid(row = 0, column = 3, padx=5)
+        self.back_button.grid(row = 1, column = 3, padx = 5, pady = 5)
 
         self.stats_labelframe = ttk.Labelframe(self, text = "Estadisticas")
         self.stats_labelframe.grid(row = 1, column = 0, columnspan = 3, padx=10, pady=10, ipadx=5, ipady=5, sticky=tk.NSEW)
@@ -355,7 +362,8 @@ class GraphFrame(ttk.Frame):
         #Arma un diccionario con los argumentos para hacer el grafo
         options_dict = {
             "basedon": self.basedon.get(),
-            "first": min(max(int(self.first_elements.get()), 1), self.distros_in_table)
+            "first": min(max(int(self.first_elements.get()), 1), self.distros_in_table),
+            "theme": self.graph_theme.get()
         }
         self.first_elements.set(str(options_dict["first"]))
 
